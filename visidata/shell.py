@@ -3,6 +3,7 @@ import shutil
 import stat
 import subprocess
 import contextlib
+import re
 try:
     import pwd
     import grp
@@ -65,16 +66,16 @@ class ColumnShell(Column):
     def calcValue(self, row):
         try:
             import shlex
-            args = []
+            args = shlex.split(self.expr)
+
             context = LazyComputeRow(self.source, row)
-            for arg in shlex.split(self.expr):
-                if arg.startswith('$'):
-                    args.append(shlex.quote(str(context[arg[1:]])))
-                else:
-                    args.append(arg)
+
+            row_env = {k:str(v) for k,v in context.as_dict().items()}
+            merged_env = {**os.environ, **row_env}
 
             p = subprocess.Popen([os.getenv('SHELL', 'bash'), '-c', ' '.join(args)],
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=merged_env)
+
             return p.communicate()
         except Exception as e:
             vd.exceptionCaught(e)
